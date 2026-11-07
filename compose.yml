@@ -1,0 +1,56 @@
+x-moodle-environment: &moodle-environment
+  MOODLE_DB_TYPE: ${MOODLE_DB_TYPE:-pgsql}
+  MOODLE_DB_HOST: ${MOODLE_DB_HOST:-db}
+  MOODLE_DB_NAME: ${MOODLE_DB_NAME:-moodle}
+  MOODLE_DB_USER: ${MOODLE_DB_USER:-moodle}
+  MOODLE_DB_PASSWORD: ${MOODLE_DB_PASSWORD:?MOODLE_DB_PASSWORD is required}
+  MOODLE_WWWROOT: ${MOODLE_WWWROOT:-http://localhost:8080}
+  MOODLE_DATAROOT: ${MOODLE_DATAROOT:-/var/www/moodledata}
+  MOODLE_REVERSE_PROXY: ${MOODLE_REVERSE_PROXY:-false}
+  MOODLE_SSL_PROXY: ${MOODLE_SSL_PROXY:-false}
+  MOODLE_ROUTER_CONFIGURED: ${MOODLE_ROUTER_CONFIGURED:-false}
+
+services:
+  moodle:
+    image: ${MOODLE_IMAGE:-ghcr.io/fundus-verkaufsplattform/fundus-moodle:local}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${MOODLE_HTTP_PORT:-8080}:80"
+    environment: *moodle-environment
+    volumes:
+      - moodledata:/var/www/moodledata
+
+  cron:
+    image: ${MOODLE_IMAGE:-ghcr.io/fundus-verkaufsplattform/fundus-moodle:local}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      moodle:
+        condition: service_started
+    environment: *moodle-environment
+    volumes:
+      - moodledata:/var/www/moodledata
+    command: ["sh", "-c", "while true; do php /var/www/html/admin/cli/cron.php || true; sleep 60; done"]
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${MOODLE_DB_NAME:-moodle}
+      POSTGRES_USER: ${MOODLE_DB_USER:-moodle}
+      POSTGRES_PASSWORD: ${MOODLE_DB_PASSWORD:?MOODLE_DB_PASSWORD is required}
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${MOODLE_DB_USER:-moodle} -d ${MOODLE_DB_NAME:-moodle}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  dbdata:
+  moodledata:
