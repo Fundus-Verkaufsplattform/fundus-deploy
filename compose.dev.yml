@@ -1,0 +1,8 @@
+services:
+  moodle:
+    volumes:
+      - ../fundus:/var/www/html/public/local/fundus
+
+  cron:
+    volumes:
+      - ../fundus:/var/www/html/public/local/fundus
